@@ -13,7 +13,7 @@ Use this at your own risk. It works for me, but I can’t guarantee it will work
 
 ### Download the release
 
-1. Download ND-Toggle.zip here
+1. Download [ND-Toggle.app.zip here](https://github.com/ilovedoumiao/nd-toggle/releases)
 2. Unzip file and move the app to your Applications folder
 3. Open ND Toggle and find it on your menu bar with the shield icon.
 
