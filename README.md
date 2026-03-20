@@ -1,4 +1,4 @@
-<img src="Synchmod/Assets.xcassets/AppIcon.appiconset/ND Toggle-macOS-Dark-256x256@2x.png" alt="ND Toggle icon" width="128px" style="vertical-align: middle; margin-right: 8px;" />
+<img src="nd-toggle/Assets.xcassets/AppIcon.appiconset/ND Toggle-macOS-Dark-256x256@2x.png" alt="ND Toggle icon" width="128px" style="vertical-align: middle; margin-right: 8px;" />
 
 # ND Toggle
 
