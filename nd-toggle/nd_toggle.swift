@@ -31,6 +31,9 @@ struct nd_toggle: App {
 					Text(model.txt_status)
 						.font(.system(size: 12))
 						.opacity(0.5)
+					Text(model.txt_dns)
+						.font(.system(size: 12))
+						.opacity(0.5)
 					Text(model.txt_ver)
 						.font(.system(size: 12))
 						.opacity(0.5)
@@ -55,6 +58,11 @@ struct nd_toggle: App {
 				}
 				
 				Divider()
+
+				Text("ND Toggler v1.1")
+					.font(.system(size: 12))
+					.opacity(0.5)
+					.padding(.bottom, -3)
 				
 				Button {
 					NSApplication.shared.terminate(nil)
@@ -84,6 +92,9 @@ struct nd_toggle: App {
 			.padding(.top, 12)
 			.padding(.bottom, 6)
 			.frame(width: 240, alignment: .leading)
+			.onAppear {
+				model.refreshOnMenuOpen()
+			}
 		} label: {
 			Image(model.ico_asset)
 				.renderingMode(.template)
@@ -111,16 +122,17 @@ final class model_ndns {
 		case error
 	}
 	
-	private enum MenuStatus {
+	private enum Menustatus {
 		case running
 		case stopped
 		case error
 		case notFound
 	}
 	
-	private var status: MenuStatus = .stopped
+	private var status: Menustatus = .stopped
 	private(set) var profile_name = Constants.profile_default
 	private(set) var version = Constants.unknownVersion
+	private(set) var dns_address = "Unknown DNS"
 	private(set) var isBusy = false
 	private(set) var launchAtLoginEnabled = false
 	private(set) var launchAtLoginBusy = false
@@ -156,9 +168,9 @@ final class model_ndns {
 	var txt_status: String {
 		switch status {
 		case .running:
-			return "NextDNS status: Running"
+			return "NextDNS daemon: Running"
 		case .stopped, .error:
-			return "NextDNS status: Stopped"
+			return "NextDNS daemon: Stopped"
 		case .notFound:
 			return Constants.notFoundText
 		}
@@ -174,6 +186,10 @@ final class model_ndns {
 	
 	var txt_ver: String {
 		version.replacingOccurrences(of: "nextdns", with: "nextdns-cli")
+	}
+
+	var txt_dns: String {
+		dns_address
 	}
 	
 	var tog_status: Bool {
@@ -203,14 +219,18 @@ final class model_ndns {
 		
 		Task {
 			let command: NextDNSHelperCommand = shouldRun ? .start : .stop
-			let expectedStatus: MenuStatus =
+			let expectedstatus: Menustatus =
 			command == .start ? .running : .stopped
 			let succeeded = await run_cmd(command)
 			if succeeded {
 				err_cmd = nil
 				helper_message = nil
-				status = expectedStatus
-				await wait_status(expectedStatus)
+				status = expectedstatus
+				if shouldRun {
+					dns_address = "Fetching updated DNS..."
+				}
+				await wait_status(expectedstatus, preserveDNSPlaceholder: shouldRun)
+				await wait_dns_change(expectLoopback: shouldRun)
 				return
 			}
 			await refresh()
@@ -222,8 +242,16 @@ final class model_ndns {
 			await setLaunchAtLoginAsync(enabled)
 		}
 	}
+
+	func refreshOnMenuOpen() {
+		Task {
+			await refresh()
+			try? await Task.sleep(nanoseconds: 500_000_000)
+			await refresh()
+		}
+	}
 	
-	func refresh() async {
+	func refresh(updateDNS: Bool = true) async {
 		let resolution = await where_ndns()
 		
 		switch resolution {
@@ -234,54 +262,87 @@ final class model_ndns {
 			status = .notFound
 			profile_name = Constants.profile_default
 			version = Constants.unknownVersion
+			dns_address = "Unknown DNS"
 			return
 		case .error:
 			url_ndns = nil
 			status = .error
 			profile_name = Constants.profile_default
 			version = Constants.unknownVersion
+			dns_address = "Unknown DNS"
 			return
 		}
 		
 		guard let url_ndns else { return }
 		
-		async let runningStatus = status_now()
+		async let runningstatus = status_now()
 		async let profileResult = run_proc(
 			at: url_ndns,
 			arguments: ["config", "list"]
 		)
 		async let what_ver = run_proc(at: url_ndns, arguments: ["version"])
+		async let dns_now = fetch_dns_address()
 		
-		let daemonStatus = await runningStatus
+		let daemonstatus = await runningstatus
 		let profile = await profileResult
 		let what_verValue = await what_ver
+		let current_dns = await dns_now
 		
 		err_cmd = nil
 		profile_name = get_profile(profile.stdout) ?? Constants.profile_default
 		version =
 		fetch_actualinfo(in: what_verValue.stdout)
 		?? Constants.unknownVersion
+		if updateDNS {
+			dns_address = current_dns
+		}
 		
-		status = daemonStatus
+		status = daemonstatus
 	}
 	
-	private func wait_status(_ expectedStatus: MenuStatus) async {
+	private func wait_status(_ expectedstatus: Menustatus, preserveDNSPlaceholder: Bool = false) async {
 		for _ in 0..<10 {
-			let currentStatus = await status_now()
-			if currentStatus == expectedStatus {
-				await refresh()
+			let currentstatus = await status_now()
+			if currentstatus == expectedstatus {
+				await refresh(updateDNS: !preserveDNSPlaceholder)
 				return
 			}
 			
-			if currentStatus == .error {
+			if currentstatus == .error {
 				status = .error
-				await refresh()
+				await refresh(updateDNS: !preserveDNSPlaceholder)
 				return
 			}
 			
 			try? await Task.sleep(nanoseconds: 500_000_000)
 		}
 		
+		await refresh(updateDNS: !preserveDNSPlaceholder)
+	}
+
+	private func wait_dns_change(expectLoopback: Bool) async {
+		for _ in 0..<24 {
+			let currentDNS = await fetch_dns_address()
+
+			let hasLoopback = currentDNS.contains("(Loopback)")
+
+			if expectLoopback {
+				if hasLoopback == expectLoopback {
+					dns_address = currentDNS
+					await refresh()
+					return
+				}
+			} else {
+				dns_address = currentDNS
+				if hasLoopback == expectLoopback {
+					await refresh()
+					return
+				}
+			}
+
+			try? await Task.sleep(nanoseconds: 500_000_000)
+		}
+
 		await refresh()
 	}
 	
@@ -320,7 +381,7 @@ final class model_ndns {
 		}
 	}
 	
-	private func status_now() async -> MenuStatus {
+	private func status_now() async -> Menustatus {
 		let result = await run_proc(
 			at: URL(fileURLWithPath: "/usr/bin/pgrep"),
 			arguments: ["-fl", "nextdns"]
@@ -449,6 +510,56 @@ final class model_ndns {
 		}
 		
 		return nil
+	}
+
+	private func fetch_dns_address() async -> String {
+		let result = await run_proc(
+			at: URL(fileURLWithPath: "/usr/sbin/scutil"),
+			arguments: ["--dns"]
+		)
+
+		guard result.exitCode == 0 else {
+			return "Unknown DNS"
+		}
+
+		let lines = result.stdout.components(separatedBy: .newlines)
+
+		for rawLine in lines {
+			let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard line.hasPrefix("nameserver[") else { continue }
+
+			guard let address = line.split(separator: ":", maxSplits: 1).last?
+				.trimmingCharacters(in: .whitespacesAndNewlines),
+				!address.isEmpty
+			else {
+				continue
+			}
+
+			guard is_ipv4_address(address) else { continue }
+			return format_dns_address(address)
+		}
+
+		return "Unknown DNS"
+	}
+
+	private func format_dns_address(_ address: String) -> String {
+		let lowercased = address.lowercased()
+
+		if lowercased == "127.0.0.1" || lowercased == "::1" || lowercased == "localhost" {
+			return "\(address) (Loopback)"
+		}
+
+		return address
+	}
+
+	private func is_ipv4_address(_ address: String) -> Bool {
+		let parts = address.split(separator: ".")
+		guard parts.count == 4 else { return false }
+
+		return parts.allSatisfy { part in
+			guard let value = Int(part), String(value) == part else { return false }
+			return (0...255).contains(value)
+		}
 	}
 	
 	private func run_proc(at executableURL: URL, arguments: [String]) async
