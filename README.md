@@ -1,6 +1,13 @@
-<img src="nd-toggle/Assets.xcassets/AppIcon.appiconset/ND Toggle-macOS-Dark-256x256@2x.png" alt="ND Toggle icon" width="128px" style="vertical-align: middle; margin-right: 8px;" />
+<p align="center">
+    <img width="128" alt="ND Toggle Logo" src="nd-toggle/Assets.xcassets/AppIcon.appiconset/ND Toggle-macOS-Dark-256x256@2x.png">
+</p>
 
-# ND Toggle
+<h1 align="center">ND Toggle</h1>
+
+<p align="center">
+  <img alt="ND Toggle - A tiny unofficial menubar utility to conveniently control your nextdns-cli daemon"
+       src="ss-nd-toggle.jpg" width="640">
+</p>
 
 ND Toggle is a tiny unofficial menubar utility to conveniently start or stop your `nextdns-cli` daemon.
 If you're like me—prefers the cli version, yet lazy to manually stop or start your NextDNS service through Terminal, this is for you.
