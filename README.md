@@ -28,6 +28,8 @@ Use this at your own risk. It works for me, but I can’t guarantee it will work
 
 You'd need to already have `nextdns-cli` installed. [See instructions here](https://github.com/nextdns/nextdns/wiki).
 
+There should be a `nextdns.plist` in your `/Library/LaunchDaemons`.
+
 Release is not notarized so you may need to right click and choose Open from the context menu once.
 
 or
