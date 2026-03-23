@@ -39,6 +39,11 @@ or
 ```bash
 git clone https://github.com/ilovedoumiao/nd-toggle.git
 ```
+1. Open the `nd-toggle.xcodeproj` project file in Xcode
+2. Product → Archive
+3. Once the build is completed, the Archives window should pop up
+4. Click on Distribute App button on the right → Custom → Copy App and Export
+5. Move the `ND Toggle.app` from the exported folder into your Applications
 
 #### Notes
 
